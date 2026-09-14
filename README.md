@@ -1,31 +1,47 @@
-# Servio — Service Enquiry & Booking
+# Servio — Service Enquiry & Booking System
 
-Landing page and enquiry system for **Servio**, a fictional local-services booking demo. Visitors browse services, send an enquiry, get a confirmation email, and admins manage submissions in a protected dashboard.
+A landing page and enquiry pipeline for **Servio**, a local-services booking product. Visitors browse services, submit an enquiry through a modal form, receive an email confirmation, and admins review submissions from a protected dashboard.
 
-**Live demo:** [Add your deployed URL]  
-**Repository:** https://github.com/Haseeb-takween/demo-project
+**Repository:** https://github.com/haseeb-012/service_enquiry-_and_booking_system
+
+---
+
+## Overview
+
+Servio is a Next.js application with two surfaces:
+
+- **Public marketing site** — a full landing page (hero, services, how it works, benefits, testimonials, FAQ, service finder, CTA) with an enquiry modal that lets visitors request a service and see an in-modal confirmation once it's submitted.
+- **Admin dashboard** — a JWT-protected area where an admin logs in and reviews incoming enquiries in a table.
+
+Submissions are stored in MongoDB via Mongoose, and a confirmation email is sent to the submitter through Gmail SMTP (Nodemailer). Route protection for `/admin/*` is handled by `proxy.ts`.
 
 ---
 
 ## Features
 
 ### Marketing site (`/`)
-- Full landing page: hero, services, how it works, benefits, testimonials, FAQ, service finder, CTA
-- Enquiry modal (Zod + React Hook Form) with service presets from the hero / finder
-- Smooth scrolling (Lenis), motion (Framer Motion), teal brand UI (shadcn/ui + Tailwind)
-- In-modal “Enquiry sent!” confirmation after a successful submission
+- Hero, services, how it works, benefits, testimonials, FAQ, service finder, and CTA sections
+- Enquiry modal (`EnquiryDialog`) built with React Hook Form + Zod, with service presets passed in from the hero / service finder
+- In-modal "Enquiry sent" confirmation state after a successful submission — no separate thank-you page
+- Smooth scrolling (Lenis) and motion (Framer Motion) throughout
+- Shared `BrandMark` / `BrandLink` components for consistent branding in the navbar and footer
+- Privacy Policy (`/privacy`) and Terms & Conditions (`/terms`) pages, both rendered through a shared `LegalPage` component
 
 ### Public enquiry flow
 - Fields: full name, email, phone, service type, preferred date, message
-- Client-side validation and loading / success states
-- Confirmation email to the submitter via Gmail SMTP
+- Client-side validation with loading and success states
+- Best-effort confirmation email to the submitter (the enquiry still saves even if SMTP fails or credentials are missing)
 
-### Admin panel (`/admin/login` → `/admin`)
-- Email / password login
-- JWT in an HTTP-only cookie (1-hour session)
-- Dashboard of submissions (newest first)
-- Mark as **Reviewed**
-- Logout clears the session; unauthenticated users are sent to login via `proxy.ts`
+### Admin dashboard (`/admin/login` → `/admin`)
+- Email / password login backed by `ADMIN_EMAIL` / `ADMIN_PASSWORD`
+- JWT issued on login and stored in an HTTP-only cookie (1-hour expiry)
+- Submissions table (newest first) with name, email, phone, service, preferred date, message, submitted date, and status
+- Toggle a submission between **Pending** and **Reviewed**
+- Summary stats (total / pending / reviewed counts)
+- Logout clears the session cookie
+- Unauthenticated visitors to `/admin/*` are redirected to `/admin/login` by `proxy.ts`
+
+> The submissions API also supports `DELETE` (`/api/admin/submissions/[id]`), but the current admin UI does not yet expose a delete button — only the reviewed/pending toggle is wired up.
 
 ---
 
@@ -34,12 +50,12 @@ Landing page and enquiry system for **Servio**, a fictional local-services booki
 | Area | Stack |
 |------|--------|
 | Framework | Next.js 16 (App Router), React 19, TypeScript |
-| UI | Tailwind CSS 4, shadcn/ui (Base UI), Lucide, Sonner |
-| Motion | Framer Motion, Lenis |
+| UI | Tailwind CSS 4, shadcn/ui (Base UI style, `components.json`), Lucide icons, Sonner toasts |
+| Motion | Framer Motion, Lenis (smooth scroll) |
 | Forms | React Hook Form, Zod, `@hookform/resolvers` |
-| Data | MongoDB Atlas + Mongoose |
-| Email | Nodemailer + Gmail SMTP |
-| Auth | jsonwebtoken (JWT) |
+| Data | MongoDB (Mongoose ODM) |
+| Email | Nodemailer over Gmail SMTP |
+| Auth | `jsonwebtoken` (JWT in an HTTP-only cookie) |
 | Package manager | pnpm |
 
 ---
@@ -49,88 +65,94 @@ Landing page and enquiry system for **Servio**, a fictional local-services booki
 ```
 service_enquiry-_and_booking_system/
 ├── app/
-│   ├── page.tsx                 # Servio landing page
-│   ├── layout.tsx               # Root layout, fonts, toaster
-│   ├── globals.css              # Design tokens + utilities
-│   ├── components/              # Landing sections + enquiry dialog
+│   ├── page.tsx                       # Landing page
+│   ├── layout.tsx                     # Root layout, fonts, metadata, toaster
+│   ├── globals.css                    # Design tokens (teal brand palette) + utilities
+│   ├── privacy/page.tsx               # Privacy Policy (uses LegalPage)
+│   ├── terms/page.tsx                 # Terms & Conditions (uses LegalPage)
+│   ├── components/                    # Landing sections, enquiry dialog, shared UI
+│   │   ├── Hero.tsx, Services.tsx, HowItWorks.tsx, Benefits.tsx,
+│   │   │   Testimonials.tsx, FAQ.tsx, ServiceFinder.tsx, CTA.tsx
+│   │   ├── EnquiryDialog.tsx           # Enquiry form + in-modal confirmation
+│   │   ├── DialogController.tsx        # Shared open/close state for the enquiry dialog
+│   │   ├── BrandMark.tsx               # BrandMark / BrandLink branding components
+│   │   ├── LegalPage.tsx               # Shared layout for Privacy / Terms pages
+│   │   ├── Navbar.tsx, Footer.tsx, Section.tsx
+│   │   └── LenisProvider.tsx           # Smooth scroll + scroll progress bar
 │   ├── admin/
-│   │   ├── login/page.tsx       # Admin login
-│   │   └── page.tsx             # Admin dashboard
-│   ├── api/
-│   │   ├── submit/route.ts      # POST — create submission + email
-│   │   ├── health/route.ts
-│   │   └── admin/
-│   │       ├── login/route.ts
-│   │       ├── logout/route.ts
-│   │       └── submissions/
-│   │           ├── route.ts     # GET — list
-│   │           └── [id]/route.ts # PATCH / DELETE
-│   ├── favicon.ico / icon.png / apple-icon.png
-│   └── ...
-├── components/ui/               # Shared UI primitives
+│   │   ├── login/page.tsx              # Admin login form
+│   │   └── page.tsx                    # Admin dashboard (submissions table)
+│   └── api/
+│       ├── submit/route.ts             # POST — create submission + send email
+│       ├── health/route.ts             # GET — DB connectivity check
+│       └── admin/
+│           ├── login/route.ts          # POST — verify credentials, set JWT cookie
+│           ├── logout/route.ts         # POST — clear JWT cookie
+│           └── submissions/
+│               ├── route.ts            # GET — list submissions (admin only)
+│               └── [id]/route.ts       # PATCH — toggle reviewed, DELETE — remove submission
+├── components/ui/                      # shadcn/ui primitives (button, dialog, input, select, ...)
 ├── lib/
-│   ├── auth.ts                  # JWT helpers
-│   ├── db/index.ts              # MongoDB connection
-│   ├── email.ts                 # Nodemailer transporter
-│   ├── motion.ts                # Shared motion easing / variants
-│   └── utils.ts                 # cn() helper
-├── models/submission.ts         # Mongoose schema
-├── proxy.ts                     # Protects /admin routes
-└── .env.local                   # Secrets (not committed)
+│   ├── auth.ts                         # JWT verification helper for API routes
+│   ├── db/index.ts                     # MongoDB/Mongoose connection
+│   ├── email.ts                        # Nodemailer transporter
+│   ├── motion.ts                       # Shared Framer Motion easing / variants
+│   └── utils.ts                        # cn() class-name helper
+├── models/submission.ts                # Mongoose Submission schema
+├── types/global.d.ts
+├── proxy.ts                            # Redirects unauthenticated /admin/* requests to login
+├── components.json                     # shadcn/ui configuration
+└── .env.example                        # Template for required environment variables
 ```
 
 ---
 
 ## Environment variables
 
-Create a `.env.local` in the project root:
+Copy `.env.example` to `.env.local` and fill in real values:
 
-```env
-MONGODB_URI=your_mongodb_atlas_connection_string
-EMAIL_USER=your_gmail_address
-EMAIL_PASS=your_gmail_app_password
-ADMIN_EMAIL=admin@example.com
-ADMIN_PASSWORD=your_admin_password
-JWT_SECRET=your_strong_random_secret
+```bash
+cp .env.example .env.local
 ```
 
-| Variable | Description |
-|----------|-------------|
-| `MONGODB_URI` | MongoDB Atlas connection string |
-| `EMAIL_USER` | Gmail address for confirmation emails |
-| `EMAIL_PASS` | Gmail [App Password](https://support.google.com/accounts/answer/185833) |
-| `ADMIN_EMAIL` | Admin login email |
-| `ADMIN_PASSWORD` | Admin login password |
-| `JWT_SECRET` | JWT signing secret — use a long random string in production |
+| Variable | Purpose |
+|----------|---------|
+| `MONGODB_URI` | MongoDB connection string used by `lib/db/index.ts` to store submissions |
+| `EMAIL_USER` | Gmail address used as the SMTP sender for enquiry confirmation emails |
+| `EMAIL_PASS` | Gmail [App Password](https://support.google.com/accounts/answer/185833) for `EMAIL_USER` |
+| `ADMIN_EMAIL` | Email required to log in to `/admin/login` |
+| `ADMIN_PASSWORD` | Password required to log in to `/admin/login` |
+| `JWT_SECRET` | Secret used to sign/verify the admin session JWT |
+
+Notes:
+- `MONGODB_URI` is required for the app to start `/api/submit`, `/api/health`, and all admin routes — the app throws if it's missing when the admin routes are loaded.
+- The confirmation email is best-effort: if `EMAIL_USER` / `EMAIL_PASS` are not set (or SMTP fails), the submission still saves and the request still succeeds.
+- Never commit real secrets — only `.env.example` (with placeholder values) is tracked in git.
 
 ---
 
 ## Getting started
 
 ### Prerequisites
-- Node.js 18+
-- pnpm
-- MongoDB Atlas cluster
-- Gmail account with an App Password
+- Node.js (a recent LTS version) and pnpm
+- A MongoDB connection string (e.g. from MongoDB Atlas)
+- A Gmail account with an App Password (optional — enables confirmation emails)
 
 ### Install and run
 
 ```bash
-git clone https://github.com/Haseeb-takween/demo-project.git
-cd demo-project
+git clone https://github.com/haseeb-012/service_enquiry-_and_booking_system.git
+cd service_enquiry-_and_booking_system
 pnpm install
-```
-
-Add `.env.local` (see above), then:
-
-```bash
+cp .env.example .env.local   # then fill in real values
 pnpm dev
 ```
 
 | Surface | URL |
 |---------|-----|
-| Landing + enquiry | http://localhost:3000 |
+| Landing page + enquiry form | http://localhost:3000 |
 | Admin login | http://localhost:3000/admin/login |
+| Admin dashboard | http://localhost:3000/admin |
 
 ### Production build
 
@@ -141,14 +163,16 @@ pnpm start
 
 ---
 
-## How to test
+## Available scripts
 
-1. Open http://localhost:3000 and click **Request a service** (or Book from the hero card).
-2. Submit a valid enquiry and confirm the in-modal “Enquiry sent!” state.
-3. Check the inbox for the confirmation email.
-4. Sign in at `/admin/login` with `ADMIN_EMAIL` / `ADMIN_PASSWORD`.
-5. Confirm the submission appears; mark it reviewed.
-6. Log out and confirm you are returned to the login page.
+Defined in `package.json`:
+
+| Script | Command | Description |
+|--------|---------|-------------|
+| `pnpm dev` | `next dev` | Start the development server |
+| `pnpm build` | `next build` | Build the app for production |
+| `pnpm start` | `next start` | Run the production build |
+| `pnpm lint` | `eslint` | Lint the codebase |
 
 ---
 
@@ -156,38 +180,52 @@ pnpm start
 
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
-| `POST` | `/api/submit` | Public | Create submission + send confirmation email |
-| `POST` | `/api/admin/login` | Public | Admin login — sets JWT cookie |
-| `POST` | `/api/admin/logout` | Public | Clears JWT cookie |
-| `GET` | `/api/admin/submissions` | Admin | List submissions |
-| `PATCH` | `/api/admin/submissions/[id]` | Admin | Mark reviewed (and related updates) |
-| `DELETE` | `/api/admin/submissions/[id]` | Admin | Delete a submission |
-| `GET` | `/api/health` | Public | Health check |
+| `POST` | `/api/submit` | Public | Create a submission and send a confirmation email |
+| `GET` | `/api/health` | Public | Report MongoDB connectivity status |
+| `POST` | `/api/admin/login` | Public | Verify admin credentials and set the JWT cookie |
+| `POST` | `/api/admin/logout` | Public | Clear the JWT cookie |
+| `GET` | `/api/admin/submissions` | Admin (JWT cookie) | List all submissions |
+| `PATCH` | `/api/admin/submissions/[id]` | Admin (JWT cookie) | Toggle a submission's reviewed status |
+| `DELETE` | `/api/admin/submissions/[id]` | Admin (JWT cookie) | Delete a submission |
+
+Admin routes read the `token` cookie and verify it with `getAdminFromRequest` in `lib/auth.ts`; requests without a valid JWT get a `401`.
 
 ---
 
-## Deployment (Vercel)
+## How to test locally
 
-1. Push the repo to GitHub.
-2. Import the project in [Vercel](https://vercel.com).
-3. Add the same env vars from `.env.local` in the Vercel project settings.
-4. Deploy:
-   - Site: `https://your-app.vercel.app/`
-   - Admin: `https://your-app.vercel.app/admin/login`
+1. Run `pnpm dev` and open http://localhost:3000.
+2. Open the enquiry dialog from the hero, services, or service finder section and submit it with valid data.
+3. Confirm the in-modal "Enquiry sent" state appears, and (if email env vars are set) check the submitter's inbox.
+4. Sign in at `/admin/login` using `ADMIN_EMAIL` / `ADMIN_PASSWORD`.
+5. Confirm the new submission appears in the dashboard table; toggle it to Reviewed.
+6. Log out and confirm you're redirected back to `/admin/login`, and that visiting `/admin` directly while logged out also redirects there.
+
+---
+
+## Deployment
+
+This is a standard Next.js App Router project, so it deploys well to any Next.js-compatible host (e.g. Vercel). There is no deployment configuration committed to this repository — to deploy:
+
+1. Push the repository to GitHub (already done).
+2. Import the project into your hosting provider.
+3. Set the environment variables listed above in the provider's project settings.
+4. Deploy — the build command is `pnpm build`, the start command is `pnpm start`.
 
 ---
 
 ## Known limitations
 
-- Single admin account (env-based; no password reset)
-- Admin session expires after 1 hour
-- No email to admin on new enquiries
-- Dashboard has no pagination, search, or filters
-- No rate limiting or CAPTCHA on the public form
-- Servio branding and copy are for demo / portfolio use
+- Single admin account, configured via environment variables — no multi-user support or password reset flow
+- Admin session expires after 1 hour (JWT `expiresIn: '1h'`); there is no refresh mechanism
+- No email notification to the admin when a new enquiry is submitted (only the submitter gets an email)
+- The admin dashboard has no pagination, search, or filtering — all submissions load at once
+- The `DELETE /api/admin/submissions/[id]` endpoint exists but isn't wired into the admin dashboard UI yet
+- No rate limiting or CAPTCHA on the public `/api/submit` endpoint
+- Servio branding and content are for demo / portfolio purposes
 
 ---
 
 ## Author
 
-**Haseeb Sajjad** — [Haseeb-takween](https://github.com/Haseeb-takween)
+**Haseeb Sajjad** — [@haseeb-012](https://github.com/haseeb-012)
